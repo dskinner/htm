@@ -1,9 +1,11 @@
+// package htm implements a hierarchical triangular mesh suitable for graphic display and querying.
 package htm
 
 import (
 	"azul3d.org/lmath.v1"
 )
 
+// Tree represents a node in an HTM struct that can contain indices and be subdivided.
 type Tree struct {
 	Name     string
 	Indices  [3]int
@@ -15,6 +17,7 @@ type Tree struct {
 	T3 *Tree
 }
 
+// NewTree returns an initialized node by the given name with the given index values.
 func NewTree(name string, verts *[]lmath.Vec3, i0, i1, i2 int) *Tree {
 	return &Tree{
 		Name:     name,
@@ -23,6 +26,7 @@ func NewTree(name string, verts *[]lmath.Vec3, i0, i1, i2 int) *Tree {
 	}
 }
 
+// SubDivide calculates the midpoints of the node's triangle and produces four derivative triangles.
 func (t *Tree) SubDivide(level int) {
 	if len(t.Name) > level {
 		return
@@ -30,6 +34,8 @@ func (t *Tree) SubDivide(level int) {
 
 	i0, i1, i2 := t.Indices[0], t.Indices[1], t.Indices[2]
 	v0, v1, v2 := (*t.Vertices)[i0], (*t.Vertices)[i1], (*t.Vertices)[i2]
+
+	_ = t.Indices[3]
 
 	w0, _ := v1.Add(v2).Normalized()
 	w1, _ := v0.Add(v2).Normalized()
@@ -50,6 +56,7 @@ func (t *Tree) SubDivide(level int) {
 	t.T3.SubDivide(level)
 }
 
+// CollectIndices appends the current node's indices to the slice pointer unless it should recurse.
 func (t *Tree) CollectIndices(indices *[]uint32) {
 	if t.T0 == nil {
 		*indices = append(*indices, uint32(t.Indices[0]), uint32(t.Indices[1]), uint32(t.Indices[2]))
@@ -61,6 +68,7 @@ func (t *Tree) CollectIndices(indices *[]uint32) {
 	}
 }
 
+// HTM defines the initial octahedron and allows subdivision nodes.
 type HTM struct {
 	Vertices *[]lmath.Vec3
 
@@ -68,6 +76,7 @@ type HTM struct {
 	N0, N1, N2, N3 *Tree
 }
 
+// New returns an HTM initialized with an initial octahedron.
 func New() *HTM {
 	verts := []lmath.Vec3{
 		{0, 0, 1},
@@ -91,6 +100,7 @@ func New() *HTM {
 	}
 }
 
+// SubDivide starts a recursion along all root nodes.
 func (h *HTM) SubDivide(level int) {
 	h.S0.SubDivide(level)
 	h.S1.SubDivide(level)
@@ -102,6 +112,7 @@ func (h *HTM) SubDivide(level int) {
 	h.N3.SubDivide(level)
 }
 
+// Indices returns a flattened slice of all indices suitable for vertex lookup in native opengl calls.
 func (h *HTM) Indices() []uint32 {
 	var indices []uint32
 	h.S0.CollectIndices(&indices)
