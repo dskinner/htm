@@ -2,7 +2,10 @@
 package htm
 
 import (
+	"errors"
+	"fmt"
 	"math"
+	"time"
 
 	"azul3d.org/lmath.v1"
 )
@@ -136,4 +139,112 @@ func (h *HTM) TexCoords() []float32 {
 		tc = append(tc, float32(u), float32(v))
 	}
 	return tc
+}
+
+// LookupByCart looks up which triangle a given object belongs to by it's given cartesian coordinates.
+func (h *HTM) LookupByCart(v lmath.Vec3) (*Tree, error) {
+	s0ch, s1ch, s2ch, s3ch := Walker(h.S0, v), Walker(h.S1, v), Walker(h.S2, v), Walker(h.S3, v)
+	n0ch, n1ch, n2ch, n3ch := Walker(h.N0, v), Walker(h.N1, v), Walker(h.N2, v), Walker(h.N3, v)
+
+	timeout := time.After(1 * time.Second)
+
+	for s0ch != nil || s1ch != nil || s2ch != nil || s3ch != nil || n0ch != nil || n1ch != nil || n2ch != nil || n3ch != nil {
+		select {
+		case t, ok := <-s0ch:
+			if !ok {
+				s0ch = nil
+			}
+			if t != nil {
+				return t, nil
+			}
+		case t, ok := <-s1ch:
+			if !ok {
+				s1ch = nil
+			}
+			if t != nil {
+				return t, nil
+			}
+		case t, ok := <-s2ch:
+			if !ok {
+				s2ch = nil
+			}
+			if t != nil {
+				return t, nil
+			}
+		case t, ok := <-s3ch:
+			if !ok {
+				s3ch = nil
+			}
+			if t != nil {
+				return t, nil
+			}
+		case t, ok := <-n0ch:
+			if !ok {
+				n0ch = nil
+			}
+			if t != nil {
+				return t, nil
+			}
+		case t, ok := <-n1ch:
+			if !ok {
+				n1ch = nil
+			}
+			if t != nil {
+				return t, nil
+			}
+		case t, ok := <-n2ch:
+			if !ok {
+				n2ch = nil
+			}
+			if t != nil {
+				return t, nil
+			}
+		case t, ok := <-n3ch:
+			if !ok {
+				n3ch = nil
+			}
+			if t != nil {
+				return t, nil
+			}
+		case <-timeout:
+			return nil, errors.New("Timed out while walking trees.")
+		}
+	}
+
+	return nil, errors.New(fmt.Sprintf("Failed to lookup triangle by given cartesian coordinates: %v", v))
+}
+
+func Walk(t *Tree, v lmath.Vec3, ch chan *Tree) {
+	if t == nil {
+		panic("nil tree not allowed during walk.")
+	}
+	if !PointInside(t, v) {
+		return
+	}
+	if t.T0 == nil {
+		ch <- t
+	} else {
+		Walk(t.T0, v, ch)
+		Walk(t.T1, v, ch)
+		Walk(t.T2, v, ch)
+		Walk(t.T3, v, ch)
+	}
+}
+
+func Walker(t *Tree, v lmath.Vec3) <-chan *Tree {
+	ch := make(chan *Tree)
+	go func() {
+		Walk(t, v, ch)
+		close(ch)
+	}()
+	return ch
+}
+
+func PointInside(t *Tree, v lmath.Vec3) bool {
+	i0, i1, i2 := t.Indices[0], t.Indices[1], t.Indices[2]
+	v0, v1, v2 := (*t.Vertices)[i0], (*t.Vertices)[i1], (*t.Vertices)[i2]
+	a := v0.Cross(v1).Dot(v)
+	b := v1.Cross(v2).Dot(v)
+	c := v2.Cross(v0).Dot(v)
+	return a > 0 && b > 0 && c > 0
 }

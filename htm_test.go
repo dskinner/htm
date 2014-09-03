@@ -91,6 +91,18 @@ func TestTexCoords(t *testing.T) {
 	}
 }
 
+func TestLookupByCart(t *testing.T) {
+	h := New()
+	h.SubDivide(7)
+	tr, err := h.LookupByCart(lmath.Vec3{0.9, 0.1, 0.1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tr == nil {
+		t.Fatal("Tree should not be nil.")
+	}
+}
+
 func BenchmarkL5(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		h := New()
@@ -116,5 +128,18 @@ func BenchmarkL11(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		h := New()
 		h.SubDivide(11)
+	}
+}
+
+func BenchmarkLookupByCartL7(b *testing.B) {
+	b.StopTimer()
+	h := New()
+	h.SubDivide(7)
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		_, err := h.LookupByCart(lmath.Vec3{0.9, 0.1, 0.1})
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
