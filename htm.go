@@ -2,6 +2,8 @@
 package htm
 
 import (
+	"math"
+
 	"azul3d.org/lmath.v1"
 )
 
@@ -122,4 +124,16 @@ func (h *HTM) Indices() []uint32 {
 	h.N2.CollectIndices(&indices)
 	h.N3.CollectIndices(&indices)
 	return indices
+}
+
+// TexCoords returns a flattened slice of UV coordinates for texture mapping.
+// TODO(d) seam does not wrap correctly
+func (h *HTM) TexCoords() []float32 {
+	var tc []float32
+	for _, v := range *h.Vertices {
+		u := (math.Atan2(v.X, v.Z)/math.Pi + 1) * 0.5
+		v := math.Asin(v.Y)/math.Pi + 0.5
+		tc = append(tc, float32(u), float32(v))
+	}
+	return tc
 }

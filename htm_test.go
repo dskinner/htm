@@ -69,7 +69,7 @@ func TestHTMSubDivide2(t *testing.T) {
 	h := New()
 	h.SubDivide(2)
 	if len(*h.Vertices) != 30 {
-		t.Fatalf("expected 30 vertices but got %v", len(*h.Vertices))
+		t.Fatalf("Expected 30 vertices but got %v.", len(*h.Vertices))
 	}
 }
 
@@ -78,7 +78,16 @@ func TestHTMIndices(t *testing.T) {
 	h.SubDivide(2)
 	n := h.Indices()
 	if len(n) != 96 {
-		t.Fatalf("expected 96 indices but got %v", len(n))
+		t.Fatalf("Expected 96 indices but got %v.", len(n))
+	}
+}
+
+func TestTexCoords(t *testing.T) {
+	h := New()
+	h.SubDivide(2)
+	tc := h.TexCoords()
+	if (len(tc) % 2) != 0 {
+		t.Fatal("Uneven UV mapping.")
 	}
 }
 
