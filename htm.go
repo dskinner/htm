@@ -35,8 +35,6 @@ func (t *Tree) SubDivide(level int) {
 	i0, i1, i2 := t.Indices[0], t.Indices[1], t.Indices[2]
 	v0, v1, v2 := (*t.Vertices)[i0], (*t.Vertices)[i1], (*t.Vertices)[i2]
 
-	_ = t.Indices[3]
-
 	w0, _ := v1.Add(v2).Normalized()
 	w1, _ := v0.Add(v2).Normalized()
 	w2, _ := v0.Add(v1).Normalized()
