@@ -130,12 +130,13 @@ func (h *HTM) Indices() []uint32 {
 }
 
 // TexCoords returns a flattened slice of UV coordinates for texture mapping.
-// TODO(d) seam does not wrap correctly
+// TODO(d) seam does not wrap correctly.
+// TODO(d) allow user to declare which axis is up.
 func (h *HTM) TexCoords() []float32 {
 	var tc []float32
 	for _, v := range *h.Vertices {
-		u := (math.Atan2(v.X, v.Z)/math.Pi + 1) * 0.5
-		v := math.Asin(v.Y)/math.Pi + 0.5
+		u := 0.5 + math.Atan2(v.Y, v.X)/(math.Pi*2)
+		v := 0.5 - math.Asin(v.Z)/math.Pi
 		tc = append(tc, float32(u), float32(v))
 	}
 	return tc
@@ -143,68 +144,24 @@ func (h *HTM) TexCoords() []float32 {
 
 // LookupByCart looks up which triangle a given object belongs to by it's given cartesian coordinates.
 func (h *HTM) LookupByCart(v lmath.Vec3) (*Tree, error) {
-	s0ch, s1ch, s2ch, s3ch := Walker(h.S0, v), Walker(h.S1, v), Walker(h.S2, v), Walker(h.S3, v)
-	n0ch, n1ch, n2ch, n3ch := Walker(h.N0, v), Walker(h.N1, v), Walker(h.N2, v), Walker(h.N3, v)
+	sch := Walker(v, h.S0, h.S1, h.S2, h.S3)
+	nch := Walker(v, h.N0, h.N1, h.N2, h.N3)
 
 	timeout := time.After(1 * time.Second)
 
-	for s0ch != nil || s1ch != nil || s2ch != nil || s3ch != nil || n0ch != nil || n1ch != nil || n2ch != nil || n3ch != nil {
+	for sch != nil || nch != nil {
 		select {
-		case t, ok := <-s0ch:
-			if !ok {
-				s0ch = nil
-			}
-			if t != nil {
+		case t, ok := <-sch:
+			if ok {
 				return t, nil
+			} else {
+				sch = nil
 			}
-		case t, ok := <-s1ch:
-			if !ok {
-				s1ch = nil
-			}
-			if t != nil {
+		case t, ok := <-nch:
+			if ok {
 				return t, nil
-			}
-		case t, ok := <-s2ch:
-			if !ok {
-				s2ch = nil
-			}
-			if t != nil {
-				return t, nil
-			}
-		case t, ok := <-s3ch:
-			if !ok {
-				s3ch = nil
-			}
-			if t != nil {
-				return t, nil
-			}
-		case t, ok := <-n0ch:
-			if !ok {
-				n0ch = nil
-			}
-			if t != nil {
-				return t, nil
-			}
-		case t, ok := <-n1ch:
-			if !ok {
-				n1ch = nil
-			}
-			if t != nil {
-				return t, nil
-			}
-		case t, ok := <-n2ch:
-			if !ok {
-				n2ch = nil
-			}
-			if t != nil {
-				return t, nil
-			}
-		case t, ok := <-n3ch:
-			if !ok {
-				n3ch = nil
-			}
-			if t != nil {
-				return t, nil
+			} else {
+				nch = nil
 			}
 		case <-timeout:
 			return nil, errors.New("Timed out while walking trees.")
@@ -231,10 +188,12 @@ func Walk(t *Tree, v lmath.Vec3, ch chan *Tree) {
 	}
 }
 
-func Walker(t *Tree, v lmath.Vec3) <-chan *Tree {
+func Walker(v lmath.Vec3, trees ...*Tree) <-chan *Tree {
 	ch := make(chan *Tree)
 	go func() {
-		Walk(t, v, ch)
+		for _, t := range trees {
+			Walk(t, v, ch)
+		}
 		close(ch)
 	}()
 	return ch
