@@ -4,7 +4,6 @@ package htm
 import (
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"azul3d.org/lmath.v1"
@@ -12,9 +11,10 @@ import (
 
 // Tree represents a node in an HTM struct that can contain indices and be subdivided.
 type Tree struct {
-	Name     string
-	Indices  [3]int
-	Vertices *[]lmath.Vec3
+	Name string
+
+	indices  [3]int
+	vertices *[]lmath.Vec3
 
 	T0 *Tree
 	T1 *Tree
@@ -26,8 +26,8 @@ type Tree struct {
 func NewTree(name string, verts *[]lmath.Vec3, i0, i1, i2 int) *Tree {
 	return &Tree{
 		Name:     name,
-		Indices:  [3]int{i0, i1, i2},
-		Vertices: verts,
+		indices:  [3]int{i0, i1, i2},
+		vertices: verts,
 	}
 }
 
@@ -37,21 +37,21 @@ func (t *Tree) SubDivide(level int) {
 		return
 	}
 
-	i0, i1, i2 := t.Indices[0], t.Indices[1], t.Indices[2]
-	v0, v1, v2 := (*t.Vertices)[i0], (*t.Vertices)[i1], (*t.Vertices)[i2]
+	i0, i1, i2 := t.indices[0], t.indices[1], t.indices[2]
+	v0, v1, v2 := (*t.vertices)[i0], (*t.vertices)[i1], (*t.vertices)[i2]
 
 	w0, _ := v1.Add(v2).Normalized()
 	w1, _ := v0.Add(v2).Normalized()
 	w2, _ := v0.Add(v1).Normalized()
 
-	*t.Vertices = append(*t.Vertices, w0, w1, w2)
+	*t.vertices = append(*t.vertices, w0, w1, w2)
 
-	l := len(*t.Vertices)
+	l := len(*t.vertices)
 
-	t.T0 = NewTree(t.Name+"0", t.Vertices, i0, l-1, l-2)  // v0, w2, w1
-	t.T1 = NewTree(t.Name+"1", t.Vertices, i1, l-3, l-1)  // v1, w0, w2
-	t.T2 = NewTree(t.Name+"2", t.Vertices, i2, l-2, l-3)  // v2, w1, w0
-	t.T3 = NewTree(t.Name+"3", t.Vertices, l-3, l-2, l-1) // w0, w1, w2
+	t.T0 = NewTree(t.Name+"0", t.vertices, i0, l-1, l-2)  // v0, w2, w1
+	t.T1 = NewTree(t.Name+"1", t.vertices, i1, l-3, l-1)  // v1, w0, w2
+	t.T2 = NewTree(t.Name+"2", t.vertices, i2, l-2, l-3)  // v2, w1, w0
+	t.T3 = NewTree(t.Name+"3", t.vertices, l-3, l-2, l-1) // w0, w1, w2
 
 	t.T0.SubDivide(level)
 	t.T1.SubDivide(level)
@@ -62,13 +62,26 @@ func (t *Tree) SubDivide(level int) {
 // CollectIndices appends the current node's indices to the slice pointer unless it should recurse.
 func (t *Tree) CollectIndices(indices *[]uint32) {
 	if t.T0 == nil {
-		*indices = append(*indices, uint32(t.Indices[0]), uint32(t.Indices[1]), uint32(t.Indices[2]))
+		*indices = append(*indices, uint32(t.indices[0]), uint32(t.indices[1]), uint32(t.indices[2]))
 	} else {
 		t.T0.CollectIndices(indices)
 		t.T1.CollectIndices(indices)
 		t.T2.CollectIndices(indices)
 		t.T3.CollectIndices(indices)
 	}
+}
+
+// Vertices returns a subset of the HTM's vertices that is not intended for
+// use with this tree's indices.
+func (t *Tree) Vertices() []lmath.Vec3 {
+	var indices []uint32
+	t.CollectIndices(&indices)
+
+	var vertices []lmath.Vec3
+	for _, i := range indices {
+		vertices = append(vertices, (*t.vertices)[i])
+	}
+	return vertices
 }
 
 // HTM defines the initial octahedron and allows subdivision nodes.
@@ -129,17 +142,8 @@ func (h *HTM) Indices() []uint32 {
 	return indices
 }
 
-// TexCoords returns a flattened slice of UV coordinates for texture mapping.
-// TODO(d) seam does not wrap correctly.
-// TODO(d) allow user to declare which axis is up.
 func (h *HTM) TexCoords() []float32 {
-	var tc []float32
-	for _, v := range *h.Vertices {
-		u := 0.5 + math.Atan2(v.Y, v.X)/(math.Pi*2)
-		v := 0.5 - math.Asin(v.Z)/math.Pi
-		tc = append(tc, float32(u), float32(v))
-	}
-	return tc
+	return TexCoords(*h.Vertices)
 }
 
 // LookupByCart looks up which triangle a given object belongs to by it's given cartesian coordinates.
@@ -200,8 +204,8 @@ func Walker(v lmath.Vec3, trees ...*Tree) <-chan *Tree {
 }
 
 func PointInside(t *Tree, v lmath.Vec3) bool {
-	i0, i1, i2 := t.Indices[0], t.Indices[1], t.Indices[2]
-	v0, v1, v2 := (*t.Vertices)[i0], (*t.Vertices)[i1], (*t.Vertices)[i2]
+	i0, i1, i2 := t.indices[0], t.indices[1], t.indices[2]
+	v0, v1, v2 := (*t.vertices)[i0], (*t.vertices)[i1], (*t.vertices)[i2]
 	a := v0.Cross(v1).Dot(v)
 	b := v1.Cross(v2).Dot(v)
 	c := v2.Cross(v0).Dot(v)

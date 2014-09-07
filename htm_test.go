@@ -103,6 +103,18 @@ func TestLookupByCart(t *testing.T) {
 	}
 }
 
+func testNoDups(t *testing.T) {
+	h := New()
+	h.SubDivide(5)
+	for _, v1 := range *h.Vertices {
+		for _, v2 := range *h.Vertices {
+			if v1.Equals(v2) {
+				t.Fail()
+			}
+		}
+	}
+}
+
 func BenchmarkL5(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		h := New()
