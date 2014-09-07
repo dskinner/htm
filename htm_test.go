@@ -12,10 +12,10 @@ func TestNewTree(t *testing.T) {
 	if tree.Name != "S0" {
 		t.Fatal("Tree name not initialized.")
 	}
-	if len(tree.Indices) != 3 {
+	if len(tree.indices) != 3 {
 		t.Fatal("Tree indices not of correct length.")
 	}
-	if tree.Indices[0] != 0 && tree.Indices[1] != 1 && tree.Indices[2] != 2 {
+	if tree.indices[0] != 0 && tree.indices[1] != 1 && tree.indices[2] != 2 {
 		t.Fatal("Tree indicies not initialized.")
 	}
 }
@@ -47,7 +47,7 @@ func TestTreeSubDivide(t *testing.T) {
 	if !cmp(verts[5].X, "0.707") || !cmp(verts[5].Y, "0.707") || !cmp(verts[5].Z, "0.000") {
 		t.Fatal("Third subdivision of tree not correct.")
 	}
-	if tree.Indices[0] != 0 || tree.Indices[1] != 1 || tree.Indices[2] != 2 {
+	if tree.indices[0] != 0 || tree.indices[1] != 1 || tree.indices[2] != 2 {
 		t.Fatal("Tree indices not initialized.")
 	}
 }
