@@ -16,10 +16,7 @@ type Tree struct {
 	indices  [3]int
 	vertices *[]lmath.Vec3
 
-	T0 *Tree
-	T1 *Tree
-	T2 *Tree
-	T3 *Tree
+	T0, T1, T2, T3 *Tree
 }
 
 // NewTree returns an initialized node by the given name with the given index values.
@@ -30,6 +27,10 @@ func NewTree(name string, verts *[]lmath.Vec3, i0, i1, i2 int) *Tree {
 		vertices: verts,
 	}
 }
+
+func (t *Tree) V0() lmath.Vec3 { return (*t.vertices)[t.indices[0]] }
+func (t *Tree) V1() lmath.Vec3 { return (*t.vertices)[t.indices[1]] }
+func (t *Tree) V2() lmath.Vec3 { return (*t.vertices)[t.indices[2]] }
 
 // SubDivide calculates the midpoints of the node's triangle and produces four derivative triangles.
 func (t *Tree) SubDivide(level int) {
@@ -203,6 +204,38 @@ func Walker(v lmath.Vec3, trees ...*Tree) <-chan *Tree {
 	return ch
 }
 
+func Walk2(t *Tree, ch chan *Tree) {
+	if t == nil {
+		panic("nil tree not allowed during walk.")
+	}
+	if t.T0 == nil {
+		ch <- t
+		return
+	}
+
+	// TODO(d) alternate walk that returns all trees
+	// ch <- t.T0
+	// ch <- t.T1
+	// ch <- t.T2
+	// ch <- t.T3
+
+	Walk2(t.T0, ch)
+	Walk2(t.T1, ch)
+	Walk2(t.T2, ch)
+	Walk2(t.T3, ch)
+}
+
+func Walker2(trees ...*Tree) <-chan *Tree {
+	ch := make(chan *Tree)
+	go func() {
+		for _, t := range trees {
+			Walk2(t, ch)
+		}
+		close(ch)
+	}()
+	return ch
+}
+
 func PointInside(t *Tree, v lmath.Vec3) bool {
 	i0, i1, i2 := t.indices[0], t.indices[1], t.indices[2]
 	v0, v1, v2 := (*t.vertices)[i0], (*t.vertices)[i1], (*t.vertices)[i2]
@@ -210,4 +243,70 @@ func PointInside(t *Tree, v lmath.Vec3) bool {
 	b := v1.Cross(v2).Dot(v)
 	c := v2.Cross(v0).Dot(v)
 	return a > 0 && b > 0 && c > 0
+}
+
+type Sign int
+
+const (
+	Negative Sign = iota
+	Zero
+	Positive
+	Mixed
+)
+
+type Coverage int
+
+const (
+	Inside Coverage = iota
+	Partial
+	Outside
+)
+
+// Constraint is a circular area, given by the plane slicing it off the sphere.
+type Constraint struct {
+	P lmath.Vec3
+	D float64
+}
+
+func (c *Constraint) Test(t *Tree) Coverage {
+	a0 := c.P.Dot(t.V0()) > c.D
+	a1 := c.P.Dot(t.V1()) > c.D
+	a2 := c.P.Dot(t.V2()) > c.D
+
+	if a0 && a1 && a2 {
+		return Inside
+	} else if a0 || a1 || a2 {
+		return Partial
+	} else {
+		// TODO(d) P center, LookupByCart needed to determine final fate.
+		return Outside
+	}
+}
+
+// Convex is a combination of constraints (logical AND of constraints).
+type Convex []*Constraint
+
+func (c Convex) Test(t *Tree) bool {
+	for _, cn := range c {
+		if cn.Test(t) == Outside {
+			return false
+		}
+	}
+	return true
+}
+
+func (c Convex) Sign() Sign {
+	return Zero
+}
+
+// Domain is several convexes (logical OR of convexes).
+type Domain []*Convex
+
+func (d Domain) Test(t *Tree) bool {
+	for _, cx := range d {
+		if cx.Test(t) {
+			return true
+		}
+	}
+	return false
 }
