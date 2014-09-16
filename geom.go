@@ -34,9 +34,10 @@ func (c *Constraint) Test(t *Tree) Coverage {
 
 	if a0 && a1 && a2 {
 		return Inside
-	} else if a0 || a1 || a2 || t.PointInside(c.P) {
+	} else if a0 || a1 || a2 {
 		return Partial
 	} else {
+		// TODO(d) finish test as this is not definitive.
 		return Outside
 	}
 }

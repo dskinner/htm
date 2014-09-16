@@ -15,6 +15,8 @@ type HTM struct {
 
 	S0, S1, S2, S3 *Tree
 	N0, N1, N2, N3 *Tree
+
+	edges *Edges
 }
 
 // New returns an HTM initialized with an initial octahedron.
@@ -27,17 +29,30 @@ func New() *HTM {
 		{0, -1, 0},
 		{0, 0, -1},
 	}
+	edges := NewEdges()
+
+	// fn := func(e *Edge) {
+	// 	if em := edges.match(e); em != nil {
+	// 		return em
+	// 	} else {
+	// 		edges.insert(e)
+	// 		return e
+	// 	}
+	// }
+
 	return &HTM{
 		Vertices: &verts,
 
-		S0: NewTree("S0", &verts, 1, 5, 2),
-		S1: NewTree("S1", &verts, 2, 5, 3),
-		S2: NewTree("S2", &verts, 3, 5, 4),
-		S3: NewTree("S3", &verts, 4, 5, 1),
-		N0: NewTree("N0", &verts, 1, 0, 4),
-		N1: NewTree("N1", &verts, 4, 0, 3),
-		N2: NewTree("N2", &verts, 3, 0, 2),
-		N3: NewTree("N3", &verts, 2, 0, 1),
+		S0: NewTree(1, &verts, 1, 5, 2, edges),
+		S1: NewTree(1, &verts, 2, 5, 3, edges),
+		S2: NewTree(1, &verts, 3, 5, 4, edges),
+		S3: NewTree(1, &verts, 4, 5, 1, edges),
+		N0: NewTree(1, &verts, 1, 0, 4, edges),
+		N1: NewTree(1, &verts, 4, 0, 3, edges),
+		N2: NewTree(1, &verts, 3, 0, 2, edges),
+		N3: NewTree(1, &verts, 2, 0, 1, edges),
+
+		edges: edges,
 	}
 }
 
@@ -51,6 +66,17 @@ func (h *HTM) SubDivide(level int) {
 	h.N1.SubDivide(level)
 	h.N2.SubDivide(level)
 	h.N3.SubDivide(level)
+}
+
+func (h *HTM) SubDivide2(level int) {
+	h.S0.SubDivide2(level)
+	h.S1.SubDivide2(level)
+	h.S2.SubDivide2(level)
+	h.S3.SubDivide2(level)
+	h.N0.SubDivide2(level)
+	h.N1.SubDivide2(level)
+	h.N2.SubDivide2(level)
+	h.N3.SubDivide2(level)
 }
 
 // Indices returns a flattened slice of all indices suitable for vertex lookup in native opengl calls.
@@ -90,6 +116,22 @@ func (h *HTM) LookupByCart(v lmath.Vec3) (*Tree, error) {
 		return t, nil
 	}
 	return nil, errors.New(fmt.Sprintf("Failed to lookup triangle by given cartesian coordinates: %v", v))
+}
+
+func (h *HTM) Intersections(cn *Constraint) <-chan *Tree {
+	ch := make(chan *Tree)
+	go func() {
+		h.S0.Intersections(cn, ch)
+		h.S1.Intersections(cn, ch)
+		h.S2.Intersections(cn, ch)
+		h.S3.Intersections(cn, ch)
+		h.N0.Intersections(cn, ch)
+		h.N1.Intersections(cn, ch)
+		h.N2.Intersections(cn, ch)
+		h.N3.Intersections(cn, ch)
+		close(ch)
+	}()
+	return ch
 }
 
 func (h *HTM) Iter() <-chan *Tree {
