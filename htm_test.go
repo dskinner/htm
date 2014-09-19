@@ -2,6 +2,8 @@ package htm
 
 import (
 	// "fmt"
+	"image/png"
+	"os"
 	"testing"
 
 	"azul3d.org/lmath.v1"
@@ -51,6 +53,24 @@ import (
 // 		t.Fatal("Tree indices not initialized.")
 // 	}
 // }
+
+func TestImage(t *testing.T) {
+	h := New()
+	h.SubDivide(9)
+
+	m := h.Image(640)
+	if m == nil {
+		t.Fatal("received nil image")
+	}
+	out, err := os.Create("htm.png")
+	if err != nil {
+		t.Fatal("Failed to create new file heightmap_image.png")
+	}
+	defer out.Close()
+	if err := png.Encode(out, m); err != nil {
+		t.Fatal("Failed to encode htm.png")
+	}
+}
 
 func TestNewHTM(t *testing.T) {
 	h := New()

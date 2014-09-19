@@ -5,6 +5,8 @@ package htm
 import (
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
 
 	"azul3d.org/lmath.v1"
 )
@@ -138,6 +140,36 @@ func Intersections(h *HTM, pos int, cn *Constraint, ch chan int) {
 			Intersections(h, t.Children[3], cn, ch)
 		}
 	}
+}
+
+func (h *HTM) Image(size int) image.Image {
+	r := image.Rect(0, 0, size, size)
+	m := image.NewRGBA(r)
+
+	for x := 0; x < size; x++ {
+		for y := 0; y < size; y++ {
+			m.Set(x, y, color.RGBA{255, 255, 255, 255})
+		}
+	}
+
+	fn := func(v0 lmath.Vec3) {
+		if v0.Z < 0 {
+			return
+		}
+		x := int((v0.X + 1) / 2 * float64(size))
+		y := int((v0.Y + 1) / 2 * float64(size))
+		z := (v0.Z + 1) / 2 * 255
+		m.Set(int(x), int(y), color.RGBA{uint8(z), 0, 0, 255})
+	}
+
+	for _, t := range h.Trees {
+		v0, v1, v2 := h.Vertices[t.Indices[0]], h.Vertices[t.Indices[1]], h.Vertices[t.Indices[2]]
+		fn(v0)
+		fn(v1)
+		fn(v2)
+	}
+
+	return m
 }
 
 func PointInside(h *HTM, pos int, v lmath.Vec3) bool {
