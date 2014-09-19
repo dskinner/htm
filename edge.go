@@ -16,7 +16,8 @@ func (e Edge) Empty() bool {
 }
 
 type Edges struct {
-	slice []Edge
+	slice     []Edge
+	bootstrap [9444]Edge // memory to hold first slice; Helps avoid allocation for L5 and below.
 }
 
 func (ed *Edges) New(a, b int) (Edge, bool) {
@@ -51,9 +52,15 @@ func (ed *Edges) Match(e Edge) Edge {
 
 func (ed *Edges) Grow(e Edge) {
 	n := e.Start*6 + 6
-	if cap(ed.slice) < n {
-		ed2 := make([]Edge, n*2)
-		copy(ed2, ed.slice)
-		ed.slice = ed2
+
+	if n > cap(ed.slice) {
+		var slice []Edge
+		if ed.slice == nil && n <= len(ed.bootstrap) {
+			slice = ed.bootstrap[0:]
+		} else {
+			slice = make([]Edge, n*2)
+			copy(slice, ed.slice)
+		}
+		ed.slice = slice
 	}
 }
