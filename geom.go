@@ -27,10 +27,10 @@ type Constraint struct {
 	D float64
 }
 
-func (c *Constraint) Test(t *Tree) Coverage {
-	a0 := c.P.Dot(t.V0()) > c.D
-	a1 := c.P.Dot(t.V1()) > c.D
-	a2 := c.P.Dot(t.V2()) > c.D
+func (c *Constraint) Test(v0, v1, v2 lmath.Vec3) Coverage {
+	a0 := c.P.Dot(v0) > c.D
+	a1 := c.P.Dot(v1) > c.D
+	a2 := c.P.Dot(v2) > c.D
 
 	if a0 && a1 && a2 {
 		return Inside
@@ -45,9 +45,9 @@ func (c *Constraint) Test(t *Tree) Coverage {
 // Convex is a combination of constraints (logical AND of constraints).
 type Convex []*Constraint
 
-func (c Convex) Test(t *Tree) bool {
+func (c Convex) Test(v0, v1, v2 lmath.Vec3) bool {
 	for _, cn := range c {
-		if cn.Test(t) == Outside {
+		if cn.Test(v0, v1, v2) == Outside {
 			return false
 		}
 	}
@@ -61,9 +61,9 @@ func (c Convex) Sign() Sign {
 // Domain is several convexes (logical OR of convexes).
 type Domain []*Convex
 
-func (d Domain) Test(t *Tree) bool {
+func (d Domain) Test(v0, v1, v2 lmath.Vec3) bool {
 	for _, cx := range d {
-		if cx.Test(t) {
+		if cx.Test(v0, v1, v2) {
 			return true
 		}
 	}
