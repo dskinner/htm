@@ -2,12 +2,71 @@ package htm
 
 import (
 	// "fmt"
+	"image"
+	"image/color"
 	"image/png"
 	"os"
 	"testing"
 
 	"azul3d.org/lmath.v1"
+
+	"github.com/sixthgear/noise"
 )
+
+func RenderNoise(h *HTM) {
+	for i, v0 := range h.Vertices {
+		//v, _ := v0.Normalized()
+		offset := noise.OctaveNoise3d(v0.X, v0.Y, v0.Z, 1, 0.9, 1.5) + 1
+		// offset /= 10
+		h.Vertices[i] = v0.Add(v0.MulScalar(offset)).MulScalar(0.4)
+	}
+}
+
+func Image(h *HTM, size int) *image.RGBA {
+	r := image.Rect(0, 0, size, size)
+	m := image.NewRGBA(r)
+
+	var max float64
+	for _, t := range h.Trees {
+		v0, v1, v2 := h.Vertices[t.Indices[0]], h.Vertices[t.Indices[1]], h.Vertices[t.Indices[2]]
+		if v0.Z > max {
+			max = v0.Z
+		}
+		if v1.Z > max {
+			max = v1.Z
+		}
+		if v2.Z > max {
+			max = v2.Z
+		}
+	}
+	max = (max + 1) / 2
+	dt := 255 / max
+
+	// for x := 0; x < size; x++ {
+	// 	for y := 0; y < size; y++ {
+	// 		m.Set(x, y, color.RGBA{255, 255, 255, 255})
+	// 	}
+	// }
+
+	fn := func(v0 lmath.Vec3) {
+		// if v0.Z < 0 {
+		// 	return
+		// }
+		x := int((v0.X + 1) / 2 * float64(size))
+		y := int((v0.Y + 1) / 2 * float64(size))
+		// z := (v0.Z + 1) / 2 * 255
+		m.Set(int(x), int(y), color.RGBA{uint8((v0.Z + 1) / 2 * dt), 0, 0, 255})
+	}
+
+	for _, t := range h.Trees {
+		v0, v1, v2 := h.Vertices[t.Indices[0]], h.Vertices[t.Indices[1]], h.Vertices[t.Indices[2]]
+		fn(v0)
+		fn(v1)
+		fn(v2)
+	}
+
+	return m
+}
 
 // func TestNewTree(t *testing.T) {
 // 	tree := NewTree("S0", nil, 0, 1, 2)
@@ -54,11 +113,103 @@ import (
 // 	}
 // }
 
-func TestImage(t *testing.T) {
+func iter(h *HTM, pos int, ch chan int) {
+	t := h.Trees[pos]
+	if t.Children[0] == 0 {
+		ch <- pos
+	} else {
+		iter(h, t.Children[0], ch)
+		iter(h, t.Children[1], ch)
+		iter(h, t.Children[2], ch)
+		iter(h, t.Children[3], ch)
+	}
+}
+
+func Iter(h *HTM, pos int) <-chan int {
+	ch := make(chan int)
+	go func() {
+		iter(h, pos, ch)
+		close(ch)
+	}()
+	return ch
+}
+
+func TestImageL9Intersect(t *testing.T) {
 	h := New()
 	h.SubDivide(9)
 
-	m := h.Image(640)
+	size := 640
+	m := Image(h, size)
+	clr := func(v0 lmath.Vec3) {
+		if v0.Z < 0 {
+			return
+		}
+		x := int((v0.X + 1) / 2 * float64(size))
+		y := int((v0.Y + 1) / 2 * float64(size))
+		z := (v0.Z + 1) / 2 * 255
+		c := m.At(int(x), int(y))
+		r, _, _, _ := c.RGBA()
+		m.Set(int(x), int(y), color.RGBA{uint8(r), uint8(z), 0, 255})
+	}
+
+	cn := &Constraint{lmath.Vec3{0, 0, 1}, 0.5}
+	for _, idx := range h.Intersections(cn) {
+		for p := range Iter(h, idx) {
+			t := h.Trees[p]
+			v0, v1, v2 := h.Vertices[t.Indices[0]], h.Vertices[t.Indices[1]], h.Vertices[t.Indices[2]]
+			clr(v0)
+			clr(v1)
+			clr(v2)
+		}
+	}
+
+	if m == nil {
+		t.Fatal("received nil image")
+	}
+	out, err := os.Create("test.htm.L9.constraint.001.0.5.png")
+	if err != nil {
+		t.Fatal("Failed to create new file heightmap_image.png")
+	}
+	defer out.Close()
+	if err := png.Encode(out, m); err != nil {
+		t.Fatal("Failed to encode htm.png")
+	}
+}
+
+func TestImageL9Noise(t *testing.T) {
+	h := New()
+	h.SubDivide(9)
+
+	RenderNoise(h)
+
+	size := 640
+	m := Image(h, size)
+
+	_ = color.Black
+
+	clr := func(v0 lmath.Vec3) {
+		if v0.Z < 0 {
+			return
+		}
+		x := int((v0.X + 1) / 2 * float64(size))
+		y := int((v0.Y + 1) / 2 * float64(size))
+		z := (v0.Z + 1) / 2 * 255
+		c := m.At(int(x), int(y))
+		r, _, _, _ := c.RGBA()
+		m.Set(int(x), int(y), color.RGBA{uint8(r), uint8(z), 0, 255})
+	}
+
+	cn := &Constraint{lmath.Vec3{0, 0, 1}, 0.5}
+	for pos := range h.Intersections(cn) {
+		for p := range Iter(h, pos) {
+			t := h.Trees[p]
+			v0, v1, v2 := h.Vertices[t.Indices[0]], h.Vertices[t.Indices[1]], h.Vertices[t.Indices[2]]
+			clr(v0)
+			clr(v1)
+			clr(v2)
+		}
+	}
+
 	if m == nil {
 		t.Fatal("received nil image")
 	}
@@ -70,6 +221,12 @@ func TestImage(t *testing.T) {
 	if err := png.Encode(out, m); err != nil {
 		t.Fatal("Failed to encode htm.png")
 	}
+}
+
+func testFoo(t *testing.T) {
+	h := New()
+	h.SubDivide(11)
+	t.Logf("\n\n   Trees: %v\nVertices:  %v\n Indices: %v\n   Edges: %v\n\n", len(h.Trees), len(h.Vertices), len(h.Indices()), len(h.Edges.slice))
 }
 
 func TestNewHTM(t *testing.T) {
@@ -182,8 +339,18 @@ func BenchmarkConstraintIterL7(b *testing.B) {
 	cn := &Constraint{lmath.Vec3{0, 0, 1}, 0.5}
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		for t := range h.Intersections(cn) {
+		for _, t := range h.Intersections(cn) {
 			_ = t
 		}
+	}
+}
+
+func BenchmarkIndices(b *testing.B) {
+	b.StopTimer()
+	h := New()
+	h.SubDivide(7)
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		_ = h.Indices()
 	}
 }
