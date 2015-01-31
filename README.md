@@ -9,3 +9,13 @@ package htm implements a hierarchical triangular mesh suitable for graphic displ
 ## Documentation
 
 https://godoc.org/dasa.cc/htm
+
+## Samples
+
+### Noise
+
+![Noise](samples/test.htm.L9.noise.png)
+
+### Intersection
+
+![Intersection](samples/test.htm.L9.constraint.001.0.75.png)

@@ -1,13 +1,11 @@
 package htm
 
 import (
-	"errors"
 	"fmt"
 	"image"
 	"image/color"
-	"image/png"
+	"image/draw"
 	"math"
-	"os"
 	"sort"
 	"testing"
 
@@ -16,193 +14,28 @@ import (
 	"github.com/sixthgear/noise"
 )
 
-func RenderNoise(h *HTM) {
-	for i, v0 := range h.Vertices {
-		offset := noise.OctaveNoise3d(v0.X, v0.Y, v0.Z, 10, 0.8, 1.8) + 1
-		h.Vertices[i] = v0.Add(v0.MulScalar(offset))
-	}
-}
-
-var benchImage *image.RGBA
-
-func BenchmarkImage(b *testing.B) {
-	b.StopTimer()
-	h := New()
-	h.SubDivide(7)
-	b.StartTimer()
-	for n := 0; n < b.N; n++ {
-		benchImage = Image(h, image.Pt(640, 640))
-	}
-}
-
-func norm(x float64, max float64) float64 {
-	return (x + max) / (max * 2)
-}
-
-func TestNorm(t *testing.T) {
-	for i := 1; i < 10; i++ {
-		n := norm(0, float64(i))
-		fmt.Println(i, n)
-		if n != 0.5 {
-			t.Fatalf("%v != 0.5", n)
-		}
-	}
-}
-
-type Option func(*image.RGBA)
-
-func Background(c color.RGBA) Option {
-	return func(m *image.RGBA) {
-		size := m.Bounds().Size()
-		for x := 0; x < size.X; x++ {
-			for y := 0; y < size.Y; y++ {
-				m.Set(x, y, c)
-			}
-		}
-	}
-}
-
-type Vec3Slice []lmath.Vec3
-
-func (p Vec3Slice) Len() int           { return len(p) }
-func (p Vec3Slice) Less(i, j int) bool { return p[i].Z < p[j].Z }
-func (p Vec3Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-
-func SortVec3s(p Vec3Slice) { sort.Sort(p) }
-
-func Image(h *HTM, pt image.Point, options ...Option) *image.RGBA {
-	r := image.Rect(0, 0, pt.X, pt.Y)
-	m := image.NewRGBA(r)
-
-	for _, opt := range options {
-		opt(m)
-	}
-
-	max := h.Max()
-	p := append([]lmath.Vec3(nil), h.Vertices...)
-	SortVec3s(p)
-	for _, v0 := range p {
-		x := int(norm(v0.X, max) * float64(pt.X))
-		y := int(norm(v0.Y, max) * float64(pt.Y))
-		z := uint8(norm(v0.Z, max) * 255)
-		m.Set(x, y, color.RGBA{z, 0, 0, 255})
-	}
-
-	return m
-}
-
-func WriteImage(fn string, m *image.RGBA) error {
-	if m == nil {
-		return errors.New("received nil image")
-	}
-	out, err := os.Create(fn)
-	if err != nil {
-		return fmt.Errorf("Failed to create new file %s: %s", fn, err)
-	}
-	defer out.Close()
-	if err := png.Encode(out, m); err != nil {
-		return fmt.Errorf("Failed to encode %s: %s", fn, err)
-	}
-	return nil
-}
-
-// func TestNewTree(t *testing.T) {
-// 	tree := NewTree("S0", nil, 0, 1, 2)
-// 	if tree.Name != "S0" {
-// 		t.Fatal("Tree name not initialized.")
-// 	}
-// 	if len(tree.indices) != 3 {
-// 		t.Fatal("Tree indices not of correct length.")
-// 	}
-// 	if tree.indices[0] != 0 && tree.indices[1] != 1 && tree.indices[2] != 2 {
-// 		t.Fatal("Tree indicies not initialized.")
-// 	}
-// }
-
-// func TestTreeSubDivide(t *testing.T) {
-// 	verts := []lmath.Vec3{
-// 		{1, 0, 0},
-// 		{0, 1, 0},
-// 		{0, 0, 1},
-// 	}
-// 	l1 := len(verts)
-// 	tree := NewTree(1, &verts, 0, 1, 2)
-// 	tree.SubDivide(2)
-// 	if len(verts) == l1 {
-// 		t.Fatal("Vertices not updated.")
-// 	}
-// 	if len(verts) != 6 {
-// 		t.Fatal("Vertices not of correct length.")
-// 	}
-
-// 	cmp := func(a float64, b string) bool { return fmt.Sprintf("%.3f", a) == b }
-
-// 	if !cmp(verts[3].X, "0.000") || !cmp(verts[3].Y, "0.707") || !cmp(verts[3].Z, "0.707") {
-// 		t.Fatal("First subdivision of tree not correct.")
-// 	}
-// 	if !cmp(verts[4].X, "0.707") || !cmp(verts[4].Y, "0.000") || !cmp(verts[4].Z, "0.707") {
-// 		t.Fatal("Second subdivision of tree not correct.")
-// 	}
-// 	if !cmp(verts[5].X, "0.707") || !cmp(verts[5].Y, "0.707") || !cmp(verts[5].Z, "0.000") {
-// 		t.Fatal("Third subdivision of tree not correct.")
-// 	}
-// 	if tree.indices[0] != 0 || tree.indices[1] != 1 || tree.indices[2] != 2 {
-// 		t.Fatal("Tree indices not initialized.")
-// 	}
-// }
-
-func iter(h *HTM, pos int, ch chan int) {
-	t := h.Trees[pos]
-	if t.Children[0] == 0 {
-		ch <- pos
-	} else {
-		iter(h, t.Children[0], ch)
-		iter(h, t.Children[1], ch)
-		iter(h, t.Children[2], ch)
-		iter(h, t.Children[3], ch)
-	}
-}
-
-func Iter(h *HTM, positions ...int) <-chan int {
-	ch := make(chan int)
-	go func() {
-		for _, pos := range positions {
-			iter(h, pos, ch)
-		}
-		close(ch)
-	}()
-	return ch
-}
-
 func TestImageL9Intersect(t *testing.T) {
 	h := New()
 	h.SubDivide(9)
 
-	size := 640
-	max := h.Max()
-	m := Image(h, image.Pt(size, size))
+	sq := 640
+	size := image.Pt(sq, sq)
 
-	clr := func(v0 lmath.Vec3) {
-		x := int(norm(v0.X, max) * float64(size))
-		y := int(norm(v0.Y, max) * float64(size))
-		z := norm(v0.Z, max) * 255
-		c := m.At(x, y)
-		r, _, _, _ := c.RGBA()
-		m.Set(x, y, color.RGBA{uint8(r), uint8(z), 100, 255})
-	}
+	m0 := image.NewRGBA(image.Rect(0, 0, size.X, size.Y))
+	draw.Draw(m0, m0.Bounds(), &image.Uniform{color.RGBA{0, 0, 0, 255}}, image.ZP, draw.Src)
 
-	var sl []lmath.Vec3
+	m1 := Image(h, size, func(m *image.RGBA, x, y int, z float64) {
+		m.Set(x, y, color.RGBA{uint8(z * 255), 0, 0, 255})
+	})
+
 	cn := &Constraint{lmath.Vec3{0, 0, 1}, 0.75}
-	for p := range Iter(h, h.Intersections(cn)...) {
-		v0, v1, v2 := h.VerticesAt(p)
-		sl = append(sl, v0, v1, v2)
-	}
-	SortVec3s(sl)
-	for _, v0 := range sl {
-		clr(v0)
-	}
+	m2 := ImageConstraint(h, cn, size, func(m *image.RGBA, x, y int, z float64) {
+		m.Set(x, y, color.RGBA{0, uint8(z * 255), 0, 0})
+	})
 
-	if err := WriteImage("test.htm.L9.constraint.001.0.5.png", m); err != nil {
+	MergeImages(m0, m1, m2)
+
+	if err := WriteImage("samples/test.htm.L9.constraint.001.0.75.png", m0); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -211,46 +44,40 @@ func TestImageL9Noise(t *testing.T) {
 	h := New()
 	h.SubDivide(9)
 
-	RenderNoise(h)
-
-	size := 560
-	m := Image(h, image.Pt(size, size), Background(color.RGBA{0, 0, 0, 255}))
-
-	max := h.Max()
-
-	clr := func(v0 lmath.Vec3) {
-		x := int(norm(v0.X, max) * float64(size))
-		y := int(norm(v0.Y, max) * float64(size))
-		z := norm(v0.Z, max) * 255
-		c := m.At(x, y)
-		r, _, _, _ := c.RGBA()
-		m.Set(x, y, color.RGBA{uint8(r), uint8(z), 0, 255})
+	for i, v0 := range h.Vertices {
+		offset := noise.OctaveNoise3d(v0.X, v0.Y, v0.Z, 5, 0.8, 1.3) + 1
+		h.Vertices[i] = v0.Add(v0.MulScalar(offset))
 	}
+
+	z := 640
+	size := image.Pt(z, z)
+
+	m0 := image.NewRGBA(image.Rect(0, 0, size.X, size.Y))
+	draw.Draw(m0, m0.Bounds(), &image.Uniform{color.RGBA{0, 0, 0, 255}}, image.ZP, draw.Src)
+
+	m1 := Image(h, size, func(m *image.RGBA, x, y int, z float64) {
+		m.Set(x, y, color.RGBA{uint8(z * 255), 0, 0, 255})
+	})
 
 	cn := &Constraint{lmath.Vec3{0, 0, 1}, 0.5}
+	m2 := ImageConstraint(h, cn, size, func(m *image.RGBA, x, y int, z float64) {
+		m.Set(x, y, color.RGBA{25, uint8(z * 110), 0, 40})
+	})
 
-	var sl []lmath.Vec3
-	for p := range Iter(h, h.Intersections(cn)...) {
-		v0, v1, v2 := h.VerticesAt(p)
-		sl = append(sl, v0, v1, v2)
-	}
-	SortVec3s(sl)
-	for _, v0 := range sl {
-		clr(v0)
-	}
+	MergeImages(m0, m1, m2)
 
-	if err := WriteImage("htm.png", m); err != nil {
+	if err := WriteImage("samples/test.htm.L9.noise.png", m0); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func testFoo(t *testing.T) {
+func testL11Info(t *testing.T) {
 	h := New()
 	h.SubDivide(11)
 	t.Logf("\n\n   Trees: %v\nVertices:  %v\n Indices: %v\n   Edges: %v\n\n", len(h.Trees), len(h.Vertices), len(h.Indices()), len(h.Edges.slice))
 }
 
-func TestNewHTM(t *testing.T) {
+func TestNew(t *testing.T) {
 	h := New()
 	if len(h.Trees) != 8 {
 		t.Fatal("Trees not initialized correctly.")
@@ -260,11 +87,11 @@ func TestNewHTM(t *testing.T) {
 	}
 }
 
-type Set struct {
+type set struct {
 	Data []float64
 }
 
-func (s *Set) Put(x float64) {
+func (s *set) put(x float64) {
 	x = math.Abs(x)
 	for _, v := range s.Data {
 		if lmath.Equal(v, x) {
@@ -274,15 +101,14 @@ func (s *Set) Put(x float64) {
 	s.Data = append(s.Data, x)
 }
 
-func TestHTMSubDivide2(t *testing.T) {
+func TestUnique(t *testing.T) {
 	h := New()
-	h.SubDivide(7)
-	s := &Set{}
+	h.SubDivide(5)
+	s := &set{}
 	for _, v := range h.Vertices {
-		// t.Logf("%+v\n", v)
-		s.Put(v.X)
-		s.Put(v.Y)
-		s.Put(v.Z)
+		s.put(v.X)
+		s.put(v.Y)
+		s.put(v.Z)
 	}
 	sort.Float64s(s.Data)
 	t.Log("Unique")
@@ -290,12 +116,36 @@ func TestHTMSubDivide2(t *testing.T) {
 		t.Logf("%v", v)
 	}
 	t.Logf("Unique: %v\n", len(s.Data))
+}
+
+// TODO(d) this test is adapted from an older test and incomplete. Needs to account
+// for the full tree in a table driven test and also account for edges.
+func TestSubDivide2(t *testing.T) {
+	h := New()
+	h.SubDivide(2)
 	if len(h.Vertices) != 18 {
 		t.Fatalf("Expected 18 vertices but got %v.", len(h.Vertices))
 	}
+
+	cmp := func(a float64, b string) bool { return fmt.Sprintf("%.3f", a) == b }
+	check := func(msg string, expects [3]string, v lmath.Vec3) {
+		if !cmp(v.X, expects[0]) {
+			t.Fatal(msg, "failed for x, expected", expects[0], "but have", v.X)
+		}
+		if !cmp(v.Y, expects[1]) {
+			t.Fatal(msg, "failed for y, expected", expects[1], "but have", v.Y)
+		}
+		if !cmp(v.Z, expects[2]) {
+			t.Fatal(msg, "failed for z, expected", expects[2], "but have", v.Z)
+		}
+	}
+
+	check("first subdivision", [3]string{"0.000", "0.707", "-0.707"}, h.Vertices[6])
+	check("second subdivision", [3]string{"0.707", "0.707", "0.000"}, h.Vertices[7])
+	check("third subdivision", [3]string{"0.707", "0.000", "-0.707"}, h.Vertices[8])
 }
 
-func TestHTMIndices(t *testing.T) {
+func TestIndices(t *testing.T) {
 	h := New()
 	h.SubDivide(2)
 	n := h.Indices()
@@ -400,5 +250,17 @@ func BenchmarkIndices(b *testing.B) {
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		_ = h.Indices()
+	}
+}
+
+var benchImage *image.RGBA
+
+func BenchmarkImage(b *testing.B) {
+	b.StopTimer()
+	h := New()
+	h.SubDivide(7)
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		benchImage = Image(h, image.Pt(640, 640), func(m *image.RGBA, x, y int, z float64) { m.Set(x, y, color.RGBA{uint8(z * 255), 0, 0, 255}) })
 	}
 }

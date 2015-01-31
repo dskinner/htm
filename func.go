@@ -129,3 +129,28 @@ func SubDivide(h *HTM, idx int, level int) {
 	SubDivide(h, c, level)
 	SubDivide(h, d, level)
 }
+
+func iter(h *HTM, pos int, ch chan int) {
+	t := h.Trees[pos]
+	if t.Children[0] == 0 {
+		ch <- pos
+	} else {
+		iter(h, t.Children[0], ch)
+		iter(h, t.Children[1], ch)
+		iter(h, t.Children[2], ch)
+		iter(h, t.Children[3], ch)
+	}
+}
+
+// Iter accepts a series of node indices and returns a channel that receives node indices
+// of the smallest subdivisions.
+func Iter(h *HTM, positions ...int) <-chan int {
+	ch := make(chan int)
+	go func() {
+		for _, pos := range positions {
+			iter(h, pos, ch)
+		}
+		close(ch)
+	}()
+	return ch
+}
