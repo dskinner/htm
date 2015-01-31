@@ -1,11 +1,14 @@
 package htm
 
 import (
-	// "fmt"
+	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
+	"math"
 	"os"
+	"sort"
 	"testing"
 
 	"azul3d.org/lmath.v1"
@@ -15,57 +18,92 @@ import (
 
 func RenderNoise(h *HTM) {
 	for i, v0 := range h.Vertices {
-		//v, _ := v0.Normalized()
-		offset := noise.OctaveNoise3d(v0.X, v0.Y, v0.Z, 1, 0.9, 1.5) + 1
-		// offset /= 10
-		h.Vertices[i] = v0.Add(v0.MulScalar(offset)).MulScalar(0.4)
+		offset := noise.OctaveNoise3d(v0.X, v0.Y, v0.Z, 10, 0.8, 1.8) + 1
+		h.Vertices[i] = v0.Add(v0.MulScalar(offset))
 	}
 }
 
-func Image(h *HTM, size int) *image.RGBA {
-	r := image.Rect(0, 0, size, size)
+var benchImage *image.RGBA
+
+func BenchmarkImage(b *testing.B) {
+	b.StopTimer()
+	h := New()
+	h.SubDivide(7)
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		benchImage = Image(h, image.Pt(640, 640))
+	}
+}
+
+func norm(x float64, max float64) float64 {
+	return (x + max) / (max * 2)
+}
+
+func TestNorm(t *testing.T) {
+	for i := 1; i < 10; i++ {
+		n := norm(0, float64(i))
+		fmt.Println(i, n)
+		if n != 0.5 {
+			t.Fatalf("%v != 0.5", n)
+		}
+	}
+}
+
+type Option func(*image.RGBA)
+
+func Background(c color.RGBA) Option {
+	return func(m *image.RGBA) {
+		size := m.Bounds().Size()
+		for x := 0; x < size.X; x++ {
+			for y := 0; y < size.Y; y++ {
+				m.Set(x, y, c)
+			}
+		}
+	}
+}
+
+type Vec3Slice []lmath.Vec3
+
+func (p Vec3Slice) Len() int           { return len(p) }
+func (p Vec3Slice) Less(i, j int) bool { return p[i].Z < p[j].Z }
+func (p Vec3Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
+func SortVec3s(p Vec3Slice) { sort.Sort(p) }
+
+func Image(h *HTM, pt image.Point, options ...Option) *image.RGBA {
+	r := image.Rect(0, 0, pt.X, pt.Y)
 	m := image.NewRGBA(r)
 
-	var max float64
-	for _, t := range h.Trees {
-		v0, v1, v2 := h.Vertices[t.Indices[0]], h.Vertices[t.Indices[1]], h.Vertices[t.Indices[2]]
-		if v0.Z > max {
-			max = v0.Z
-		}
-		if v1.Z > max {
-			max = v1.Z
-		}
-		if v2.Z > max {
-			max = v2.Z
-		}
-	}
-	max = (max + 1) / 2
-	dt := 255 / max
-
-	// for x := 0; x < size; x++ {
-	// 	for y := 0; y < size; y++ {
-	// 		m.Set(x, y, color.RGBA{255, 255, 255, 255})
-	// 	}
-	// }
-
-	fn := func(v0 lmath.Vec3) {
-		// if v0.Z < 0 {
-		// 	return
-		// }
-		x := int((v0.X + 1) / 2 * float64(size))
-		y := int((v0.Y + 1) / 2 * float64(size))
-		// z := (v0.Z + 1) / 2 * 255
-		m.Set(int(x), int(y), color.RGBA{uint8((v0.Z + 1) / 2 * dt), 0, 0, 255})
+	for _, opt := range options {
+		opt(m)
 	}
 
-	for _, t := range h.Trees {
-		v0, v1, v2 := h.Vertices[t.Indices[0]], h.Vertices[t.Indices[1]], h.Vertices[t.Indices[2]]
-		fn(v0)
-		fn(v1)
-		fn(v2)
+	max := h.Max()
+	p := append([]lmath.Vec3(nil), h.Vertices...)
+	SortVec3s(p)
+	for _, v0 := range p {
+		x := int(norm(v0.X, max) * float64(pt.X))
+		y := int(norm(v0.Y, max) * float64(pt.Y))
+		z := uint8(norm(v0.Z, max) * 255)
+		m.Set(x, y, color.RGBA{z, 0, 0, 255})
 	}
 
 	return m
+}
+
+func WriteImage(fn string, m *image.RGBA) error {
+	if m == nil {
+		return errors.New("received nil image")
+	}
+	out, err := os.Create(fn)
+	if err != nil {
+		return fmt.Errorf("Failed to create new file %s: %s", fn, err)
+	}
+	defer out.Close()
+	if err := png.Encode(out, m); err != nil {
+		return fmt.Errorf("Failed to encode %s: %s", fn, err)
+	}
+	return nil
 }
 
 // func TestNewTree(t *testing.T) {
@@ -125,10 +163,12 @@ func iter(h *HTM, pos int, ch chan int) {
 	}
 }
 
-func Iter(h *HTM, pos int) <-chan int {
+func Iter(h *HTM, positions ...int) <-chan int {
 	ch := make(chan int)
 	go func() {
-		iter(h, pos, ch)
+		for _, pos := range positions {
+			iter(h, pos, ch)
+		}
 		close(ch)
 	}()
 	return ch
@@ -139,40 +179,31 @@ func TestImageL9Intersect(t *testing.T) {
 	h.SubDivide(9)
 
 	size := 640
-	m := Image(h, size)
+	max := h.Max()
+	m := Image(h, image.Pt(size, size))
+
 	clr := func(v0 lmath.Vec3) {
-		if v0.Z < 0 {
-			return
-		}
-		x := int((v0.X + 1) / 2 * float64(size))
-		y := int((v0.Y + 1) / 2 * float64(size))
-		z := (v0.Z + 1) / 2 * 255
-		c := m.At(int(x), int(y))
+		x := int(norm(v0.X, max) * float64(size))
+		y := int(norm(v0.Y, max) * float64(size))
+		z := norm(v0.Z, max) * 255
+		c := m.At(x, y)
 		r, _, _, _ := c.RGBA()
-		m.Set(int(x), int(y), color.RGBA{uint8(r), uint8(z), 0, 255})
+		m.Set(x, y, color.RGBA{uint8(r), uint8(z), 100, 255})
 	}
 
-	cn := &Constraint{lmath.Vec3{0, 0, 1}, 0.5}
-	for _, idx := range h.Intersections(cn) {
-		for p := range Iter(h, idx) {
-			t := h.Trees[p]
-			v0, v1, v2 := h.Vertices[t.Indices[0]], h.Vertices[t.Indices[1]], h.Vertices[t.Indices[2]]
-			clr(v0)
-			clr(v1)
-			clr(v2)
-		}
+	var sl []lmath.Vec3
+	cn := &Constraint{lmath.Vec3{0, 0, 1}, 0.75}
+	for p := range Iter(h, h.Intersections(cn)...) {
+		v0, v1, v2 := h.VerticesAt(p)
+		sl = append(sl, v0, v1, v2)
+	}
+	SortVec3s(sl)
+	for _, v0 := range sl {
+		clr(v0)
 	}
 
-	if m == nil {
-		t.Fatal("received nil image")
-	}
-	out, err := os.Create("test.htm.L9.constraint.001.0.5.png")
-	if err != nil {
-		t.Fatal("Failed to create new file heightmap_image.png")
-	}
-	defer out.Close()
-	if err := png.Encode(out, m); err != nil {
-		t.Fatal("Failed to encode htm.png")
+	if err := WriteImage("test.htm.L9.constraint.001.0.5.png", m); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -182,44 +213,34 @@ func TestImageL9Noise(t *testing.T) {
 
 	RenderNoise(h)
 
-	size := 640
-	m := Image(h, size)
+	size := 560
+	m := Image(h, image.Pt(size, size), Background(color.RGBA{0, 0, 0, 255}))
 
-	_ = color.Black
+	max := h.Max()
 
 	clr := func(v0 lmath.Vec3) {
-		if v0.Z < 0 {
-			return
-		}
-		x := int((v0.X + 1) / 2 * float64(size))
-		y := int((v0.Y + 1) / 2 * float64(size))
-		z := (v0.Z + 1) / 2 * 255
-		c := m.At(int(x), int(y))
+		x := int(norm(v0.X, max) * float64(size))
+		y := int(norm(v0.Y, max) * float64(size))
+		z := norm(v0.Z, max) * 255
+		c := m.At(x, y)
 		r, _, _, _ := c.RGBA()
-		m.Set(int(x), int(y), color.RGBA{uint8(r), uint8(z), 0, 255})
+		m.Set(x, y, color.RGBA{uint8(r), uint8(z), 0, 255})
 	}
 
 	cn := &Constraint{lmath.Vec3{0, 0, 1}, 0.5}
-	for pos := range h.Intersections(cn) {
-		for p := range Iter(h, pos) {
-			t := h.Trees[p]
-			v0, v1, v2 := h.Vertices[t.Indices[0]], h.Vertices[t.Indices[1]], h.Vertices[t.Indices[2]]
-			clr(v0)
-			clr(v1)
-			clr(v2)
-		}
+
+	var sl []lmath.Vec3
+	for p := range Iter(h, h.Intersections(cn)...) {
+		v0, v1, v2 := h.VerticesAt(p)
+		sl = append(sl, v0, v1, v2)
+	}
+	SortVec3s(sl)
+	for _, v0 := range sl {
+		clr(v0)
 	}
 
-	if m == nil {
-		t.Fatal("received nil image")
-	}
-	out, err := os.Create("htm.png")
-	if err != nil {
-		t.Fatal("Failed to create new file heightmap_image.png")
-	}
-	defer out.Close()
-	if err := png.Encode(out, m); err != nil {
-		t.Fatal("Failed to encode htm.png")
+	if err := WriteImage("htm.png", m); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -239,9 +260,36 @@ func TestNewHTM(t *testing.T) {
 	}
 }
 
+type Set struct {
+	Data []float64
+}
+
+func (s *Set) Put(x float64) {
+	x = math.Abs(x)
+	for _, v := range s.Data {
+		if lmath.Equal(v, x) {
+			return
+		}
+	}
+	s.Data = append(s.Data, x)
+}
+
 func TestHTMSubDivide2(t *testing.T) {
 	h := New()
-	h.SubDivide(2)
+	h.SubDivide(7)
+	s := &Set{}
+	for _, v := range h.Vertices {
+		// t.Logf("%+v\n", v)
+		s.Put(v.X)
+		s.Put(v.Y)
+		s.Put(v.Z)
+	}
+	sort.Float64s(s.Data)
+	t.Log("Unique")
+	for _, v := range s.Data {
+		t.Logf("%v", v)
+	}
+	t.Logf("Unique: %v\n", len(s.Data))
 	if len(h.Vertices) != 18 {
 		t.Fatalf("Expected 18 vertices but got %v.", len(h.Vertices))
 	}

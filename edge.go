@@ -8,6 +8,19 @@ func (e Edge) Empty() bool {
 	return e.Start == 0 && e.End == 0 && e.Mid == 0
 }
 
+// TODO(d) This would grow out of control with each subdivision if topology was being maintained during
+// subdivision. Normaly a Match(start, end) is going to receive a vertex indice and then use that to lookup
+// any current midpoints. Given (0, 1), and subdividing, there would then be (0, 2) due to the new vertex and
+// (0, 1) would need to be ?deleted/replaced/if-exists? along with (1, 0) ?is-that-being-stored-im-brain-dead-2am?
+// and then also store (1, 2) so that at-most six references are only ever held given that only triangle polygons
+// are supported.
+//
+// Part of what Match does as-is though is return the vertex indice if a mid point has already been calculated.
+// This can occur when a neighboring face has already been subdivided. If that neighbor undergoes multiple subdivisions,
+// that does not invalidate the current face and creates breaks in the surface of the mesh (visually unpleasant).
+//
+// I can't imagine a case for subdividing a mesh where I would want it to look like shit so it might be ideal to force
+// neighboring faces to subdivide a minimum number of times to maintain continuity. ltree may help with this.
 type Edges struct {
 	slice     []Edge
 	bootstrap [9444]Edge // memory to hold first slice; Helps avoid allocation for L5 and below.

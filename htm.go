@@ -70,6 +70,11 @@ func (h *HTM) VerticesAt(idx int) (v0, v1, v2 lmath.Vec3) {
 	return h.Vertices[i0], h.Vertices[i1], h.Vertices[i2]
 }
 
+// VerticesFor looks up a node's vertices by the given node.
+func (h *HTM) VerticesFor(t Tree) (v0, v1, v2 lmath.Vec3) {
+	return h.Vertices[t.Indices[0]], h.Vertices[t.Indices[1]], h.Vertices[t.Indices[2]]
+}
+
 // LevelAt returns a node's subdivision level. The eight root nodes are level one.
 func (h *HTM) LevelAt(idx int) int { return h.Trees[idx].Level }
 
@@ -79,6 +84,40 @@ func (h *HTM) EmptyAt(idx int) bool { return h.Trees[idx].Children[0] == 0 }
 // TODO(d) better name
 func (h *HTM) ChildrenAt(idx int) (a, b, c, d int) {
 	return h.Trees[idx].Children[0], h.Trees[idx].Children[1], h.Trees[idx].Children[2], h.Trees[idx].Children[3]
+}
+
+// Max returns largest value contained in vertices.
+func (h *HTM) Max() float64 {
+	var max float64
+	for _, v0 := range h.Vertices {
+		if max < v0.X {
+			max = v0.X
+		}
+		if max < v0.Y {
+			max = v0.Y
+		}
+		if max < v0.Z {
+			max = v0.Z
+		}
+	}
+	return max
+}
+
+// Min returns smallest value contained in vertices.
+func (h *HTM) Min() float64 {
+	var min float64
+	for _, v0 := range h.Vertices {
+		if min > v0.X {
+			min = v0.X
+		}
+		if min > v0.Y {
+			min = v0.Y
+		}
+		if min > v0.Z {
+			min = v0.Z
+		}
+	}
+	return min
 }
 
 // TexCoords is a convenience method.

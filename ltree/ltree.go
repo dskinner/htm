@@ -77,6 +77,8 @@ func IsLowerRight(key uint64) bool {
 // v3: {-1, 0, 0},
 // v4: {0, -1, 0},
 //
+// (0, 0): { 1,  0,  0}, { 0,  0,  1}, { 0, -1,  0}
+// (1, 0): { 0, -1,  0}, { 0,  0,  1}, {-1,  0,  0}
 func Cell(key uint64) (nx, ny, size float64) {
 	x, y, level := Decode(key)
 	size = 1 / float64(uint64(1<<level))

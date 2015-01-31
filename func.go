@@ -59,6 +59,15 @@ func LookupByCart(h *HTM, idx int, v lmath.Vec3, i *int) {
 	}
 }
 
+// TODO(d) this seems really quite arbitrarily simple. Take two vertices, add them together, normalize.
+// Since the initial structure is an octahedron, this simply works out to make a sphere, but the process
+// seems like it would work fine for arbitrary refinement.
+//
+// The important part would be my notes on Edges struct, and maintaining continuity with neighbor faces by
+// triggering minimum subdivisions there with an easy way to traverse and locate neighbors.
+//
+// Or automagically updating their indices if such a thing could also keep the master indices that makes its
+// way to the gpu up-to-date without having to reiter over edges to regenerate, or is that such a bad thing?
 func SubDivide(h *HTM, idx int, level int) {
 	if h.LevelAt(idx) >= level {
 		return
@@ -73,9 +82,12 @@ func SubDivide(h *HTM, idx int, level int) {
 		return
 	}
 
+	// here we get our face to be subdivided
 	i0, i1, i2 := h.IndicesAt(idx)
 	v0, v1, v2 := h.VerticesAt(idx)
 
+	// check each edge to see if it has already been subdivided due to a neighboring face
+	// subdivision that has already performed the calculation.
 	e0, off, ok := h.Edges.Match(i1, i2)
 	if !ok {
 		w0, _ := v1.Add(v2).Normalized()
