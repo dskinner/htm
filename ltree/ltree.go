@@ -52,33 +52,6 @@ func IsLowerRight(key uint64) bool {
 }
 
 // Cell retrieves normalized coordinates and size.
-// TODO(d) want more types of cells. Decode returns either (0, 0) (1, 0) (0, 1) (1, 1)
-// and then size is used to scale that down correctly which is based on level. That's
-// fine for a grid, but how might I infer other types from this, such as octahedron,
-// or just northern/southern part. In the current case, x and y are used to represent
-// vertices, but they might instead be used to represent faces since each pair is unique
-// which is simple enough, but then the key level would somehow need to infer the rest
-// of the information to produce 3D coordinates. That would mean Decode would return
-// a unique face and then level would need to be able to infer a set of three vertices.
-// A seperate data structure could manage mesh data and topology for effecient rendering
-// and subdivision methods for arbitrary/noisey meshes, but funcs such as this could be
-// used to generate initial primitives are possibly even reproduce algorithmic meshes in
-// a localized manner.
-//
-// Example:
-// f0: (0, 0) i...: 1, 0, 4
-// f1: (1, 0) i...: 4, 0, 3
-// f2: (1, 1) i...: 3, 0, 2
-// f3: (0, 1) i...: 2, 0, 1
-//
-// v0: {0, 0, 1},
-// v1: {1, 0, 0},
-// v2: {0, 1, 0},
-// v3: {-1, 0, 0},
-// v4: {0, -1, 0},
-//
-// (0, 0): { 1,  0,  0}, { 0,  0,  1}, { 0, -1,  0}
-// (1, 0): { 0, -1,  0}, { 0,  0,  1}, {-1,  0,  0}
 func Cell(key uint64) (nx, ny, size float64) {
 	x, y, level := Decode(key)
 	size = 1 / float64(uint64(1<<level))

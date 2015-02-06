@@ -19,7 +19,7 @@ func printWord(t *testing.T, pad string, title string, key uint64) {
 }
 
 func TestTree(t *testing.T) {
-	var root uint64 = 0
+	var root uint64
 	_, _, lvl := Decode(root)
 	if lvl != 0 {
 		t.Fail()
@@ -36,7 +36,7 @@ func TestLength(t *testing.T) {
 }
 
 func TestPrint(t *testing.T) {
-	var x uint64 = 0
+	var x uint64
 	// 1110 0010
 	// x |= 1 << 1
 	// x |= 1 << 5

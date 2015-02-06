@@ -75,7 +75,7 @@ func Image(h *HTM, size image.Point, cset ColorSet) *image.RGBA {
 	m := image.NewRGBA(r)
 
 	max := maxAbs(h)
-	p := append([]lmath.Vec3(nil), h.Vertices...)
+	p := append([]lmath.Vec3(nil), h.VerticesNotEmpty()...)
 	sortVec3s(p)
 	for _, v0 := range p {
 		x := int(norm(v0.X, max) * float64(size.X))
@@ -87,7 +87,7 @@ func Image(h *HTM, size image.Point, cset ColorSet) *image.RGBA {
 	return m
 }
 
-func ImageConstraint(h *HTM, cn *Constraint, size image.Point, cset ColorSet) *image.RGBA {
+func ImageConstraint(h *HTM, cn Tester, size image.Point, cset ColorSet) *image.RGBA {
 	r := image.Rect(0, 0, size.X, size.Y)
 	m := image.NewRGBA(r)
 

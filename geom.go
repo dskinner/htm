@@ -21,6 +21,10 @@ const (
 	Outside
 )
 
+type Tester interface {
+	Test(v0, v1, v2 lmath.Vec3) Coverage
+}
+
 // Constraint is a circular area, given by the plane slicing it off the sphere.
 type Constraint struct {
 	P lmath.Vec3
@@ -45,27 +49,36 @@ func (c *Constraint) Test(v0, v1, v2 lmath.Vec3) Coverage {
 // Convex is a combination of constraints (logical AND of constraints).
 type Convex []*Constraint
 
-func (c Convex) Test(v0, v1, v2 lmath.Vec3) bool {
+func (c Convex) Test(v0, v1, v2 lmath.Vec3) Coverage {
+	r := Inside
 	for _, cn := range c {
-		if cn.Test(v0, v1, v2) == Outside {
-			return false
+		cv := cn.Test(v0, v1, v2)
+		if cv == Outside {
+			return Outside
+		} else if cv == Partial {
+			r = Partial
 		}
 	}
-	return true
+	return r
 }
 
 func (c Convex) Sign() Sign {
+	// TODO(d) ...
 	return Zero
 }
 
 // Domain is several convexes (logical OR of convexes).
 type Domain []*Convex
 
-func (d Domain) Test(v0, v1, v2 lmath.Vec3) bool {
-	for _, cx := range d {
-		if cx.Test(v0, v1, v2) {
-			return true
+func (d Domain) Test(v0, v1, v2 lmath.Vec3) Coverage {
+	r := Outside
+	for _, cv := range d {
+		t := cv.Test(v0, v1, v2)
+		if t == Inside {
+			return Inside
+		} else if t == Partial {
+			r = Partial
 		}
 	}
-	return false
+	return r
 }
