@@ -5,7 +5,7 @@ package htm
 import (
 	"fmt"
 
-	"azul3d.org/lmath.v1"
+	"github.com/azul3d/engine/lmath"
 )
 
 // Tree represents a node contained with an HTM.

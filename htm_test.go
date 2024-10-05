@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"azul3d.org/lmath.v1"
+	"github.com/azul3d/engine/lmath"
 
 	"github.com/sixthgear/noise"
 )

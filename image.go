@@ -10,7 +10,7 @@ import (
 	"os"
 	"sort"
 
-	"azul3d.org/lmath.v1"
+	"github.com/azul3d/engine/lmath"
 )
 
 // max returns largest value contained in vertices.

@@ -1,6 +1,6 @@
 package htm
 
-import "azul3d.org/lmath.v1"
+import "github.com/azul3d/engine/lmath"
 
 // Intersections returns a slice of node indexes that are inside completely or partially.
 //

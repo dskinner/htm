@@ -3,7 +3,7 @@ package htm
 import (
 	"math"
 
-	"azul3d.org/lmath.v1"
+	"github.com/azul3d/engine/lmath"
 )
 
 // TexCoords returns a slice of UV coordinates for texture mapping.
